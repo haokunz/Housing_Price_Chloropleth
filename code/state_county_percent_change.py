@@ -10,7 +10,8 @@ import pandas as pd
 IN_PATH = os.path.join("data", "2010-2019-Census-Data-raw.csv")
 OUTPUT_DIR = "data"
 FINAL_PATH = os.path.join(OUTPUT_DIR, "zillow_census_clean.csv")
-
+FINAL_PATH_TOTAL = os.path.join(OUTPUT_DIR, 'COUNTY_AGGREGATE.csv')
+FINAL_PATH_ANNUAL = os.path.join(OUTPUT_DIR, 'COUNTY_YEARLY.csv')
 
 '''make sure to do some preliminary checking to make sure the county names match and are the same object time to make merging easier'''
 
@@ -153,31 +154,23 @@ all_data['W_PRICE'] = all_data['POPWEIGHT'].mul(all_data['PRICE']).round(decimal
 Merged_Final = all_data[['STNAME', 'CTYNAME', 'PRICE', 'YEAR', 
     'POPULATION', 'STATEPOP', 'POPWEIGHT', 'W_PRICE']]
 
-#copy Merged_Final
-Copy_Merged_Final =Merged_Final.copy()
+#Sort the dataframe by state name, cityname and year
+Merged_Final= Merged_Final.sort_values(by = ['STNAME', 'CTYNAME', 'YEAR'], ascending=[True,True,True])
 
-#Filter cols
-Copy_Merged_Final = Copy_Merged_Final.filter(items=['STNAME','CTYNAME','YEAR','W_PRICE'])
+#Use pct_change to get the percentage change of price in county level, replace nan and inf with 0
+Merged_Final['Percent_change'] = (Merged_Final.groupby(['STNAME','CTYNAME'])['PRICE']
+.apply(pd.Series.pct_change)).replace([np.inf, -np.inf], np.nan).fillna(0)
 
-#Groupby state name, county name and year
-Copy_Merged_Final = Copy_Merged_Final.groupby(['STNAME','CTYNAME', 'YEAR'])['W_PRICE'].sum().to_frame()
+#Generate total county percent change
+Merged_Final['New_percent_change'] = (Merged_Final['Percent_change'] + 1).astype(float)
 
-#Use pct_change to get the percentage change of weighted price in county level
-price_change = Copy_Merged_Final.pct_change()*100
+# Group New_percent_change by county and generate County_aggregate
+County_aggregate = Merged_Final.groupby(['STNAME', 'CTYNAME']).prod('New_percent_change')
 
-#Append price_change into Copy_Merged_Final
-Copy_Merged_Final['PCT_CHANGE'] = price_change
+# Get the total percentage of change 
+County_aggregate = (County_aggregate[['New_percent_change']] -1).mul(100)
 
-#Covert 'YEAR' index  to a col
-Copy_Merged_Final= Copy_Merged_Final.reset_index(level=['YEAR'])
-
-#Convert 'YEAR' to an int
-Copy_Merged_Final['YEAR']=Copy_Merged_Final['YEAR'].astype(int)
-
-#replace NaN value with 0
-Copy_Merged_Final = Copy_Merged_Final.fillna(value=0)
-
-#Try to use groupby to calcualte percent change based on 20
-
-Copy_Merged_Final['change_from_2010'] = Copy_Merged_Final.groupby(['CTYNAME'])['W_PRICE'].apply(lambda x: x.div(x.iloc[0]).subtract(1).mul(100))
-print(Copy_Merged_Final)
+print(Merged_Final)
+#Generate two csv
+# Merged_Final.to_csv(FINAL_PATH_ANNUAL)
+# County_aggregate.to_csv(FINAL_PATH_TOTAL)
