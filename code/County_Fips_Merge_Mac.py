@@ -17,7 +17,7 @@ fips_dict = {}
 with open(IN_PATH) as in_file:
     reader = csv.DictReader(in_file)
     for row in reader:
-        a = (row["ï»¿State"], row["County Name"] + " County")
+        a = (row["\ufeffState"], row["County Name"] + " County")
         b = row["FIPS State"]
         c = row["FIPS County"]
         if a not in fips_dict and row["County Name"] != "NA":
